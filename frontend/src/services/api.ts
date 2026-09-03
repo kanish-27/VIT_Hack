@@ -19,6 +19,12 @@ export const getDisputes = async () => {
   return await response.json();
 };
 
+export const getDashboardData = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/worker/dashboard`);
+  if (!response.ok) throw new Error('Failed to fetch dashboard data');
+  return await response.json();
+};
+
 export const getDispute = async (id: string) => {
   const response = await fetch(`${API_BASE_URL}/api/disputes/${id}`);
   if (!response.ok) throw new Error('Failed to fetch dispute');

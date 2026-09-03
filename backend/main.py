@@ -31,7 +31,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mock Data
 MOCK_DISPUTES = {
     "GS-2026-48291": {
         "id": "GS-2026-48291",
@@ -51,13 +50,208 @@ MOCK_DISPUTES = {
         "delivery_location": "Anna Nagar",
         "completion_status": "Completed",
         "verification": None
+    },
+    "GS-2026-48280": {
+        "id": "GS-2026-48280",
+        "worker_name": "Rahul Kumar",
+        "platform": "Delivery Partner",
+        "delivery_id": "DEL-48280",
+        "date": "2026-08-28",
+        "penalty_type": "Late Delivery Penalty",
+        "customer_rating": 3,
+        "complaint": "Late arrival due to traffic",
+        "amount_at_risk": 500,
+        "status": "Resolved",
+        "incentive_shield_status": "Incentive Restored",
+        "pickup_time": "1:15 PM",
+        "delivery_time": "2:30 PM",
+        "pickup_location": "T Nagar",
+        "delivery_location": "Mylapore",
+        "completion_status": "Completed",
+        "verification": {
+            "confidence_score": 95,
+            "decision": "Likely Unfair Penalty",
+            "explanation": "Traffic API confirms heavy congestion on the route.",
+            "evidence_checks": [
+                {"id": "gps", "name": "GPS Location Match", "status": "VERIFIED", "explanation": "Route followed", "score": 30},
+                {"id": "traffic", "name": "Traffic Conditions", "status": "VERIFIED", "explanation": "Heavy congestion confirmed", "score": 65}
+            ],
+            "incentive_protected": True,
+            "protected_amount": 500,
+            "verification_hash": "abc123hash",
+            "timestamp": "2026-08-28T14:40:00Z"
+        }
+    },
+    "GS-2026-48275": {
+        "id": "GS-2026-48275",
+        "worker_name": "Rahul Kumar",
+        "platform": "Delivery Partner",
+        "delivery_id": "DEL-48275",
+        "date": "2026-08-20",
+        "penalty_type": "Item Damage",
+        "customer_rating": 2,
+        "complaint": "Package was damaged",
+        "amount_at_risk": 1200,
+        "status": "Under Review",
+        "incentive_shield_status": "Protected During Review",
+        "pickup_time": "10:00 AM",
+        "delivery_time": "10:45 AM",
+        "pickup_location": "Guindy",
+        "delivery_location": "Velachery",
+        "completion_status": "Completed",
+        "verification": None
+    },
+    "GS-2026-48250": {
+        "id": "GS-2026-48250",
+        "worker_name": "Rahul Kumar",
+        "platform": "Delivery Partner",
+        "delivery_id": "DEL-48250",
+        "date": "2026-08-10",
+        "penalty_type": "Non-delivery",
+        "customer_rating": 1,
+        "complaint": "Did not receive order",
+        "amount_at_risk": 2000,
+        "status": "Rejected",
+        "incentive_shield_status": "Not Protected",
+        "pickup_time": "7:00 PM",
+        "delivery_time": "7:30 PM",
+        "pickup_location": "Adyar",
+        "delivery_location": "Besant Nagar",
+        "completion_status": "Completed",
+        "verification": {
+            "confidence_score": 40,
+            "decision": "Penalty Upheld",
+            "explanation": "GPS data does not match delivery location.",
+            "evidence_checks": [
+                {"id": "gps", "name": "GPS Location Match", "status": "FAILED", "explanation": "GPS was 5km away from delivery location", "score": 0}
+            ],
+            "incentive_protected": False,
+            "protected_amount": 0,
+            "verification_hash": "xyz789hash",
+            "timestamp": "2026-08-11T10:00:00Z"
+        }
     }
 }
-
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "GigShield API is running."}
 
+@app.get("/api/worker/dashboard")
+def get_dashboard():
+    disputes = list(MOCK_DISPUTES.values())
+    active_disputes = sum(1 for d in disputes if d.get("status") not in ["Resolved", "Rejected"])
+    resolved_disputes = sum(1 for d in disputes if d.get("status") == "Resolved")
+    
+    amount_recovered = sum(d.get("amount_at_risk", 0) for d in disputes if d.get("status") == "Resolved")
+    amount_at_risk = sum(d.get("amount_at_risk", 0) for d in disputes if d.get("status") == "Under Review")
+    
+    protected_disruptions = sum(1 for d in disputes if d.get("incentive_shield_status") in ["Protected", "Protected During Review", "Incentive Restored"])
+    total_protected = sum(d.get("amount_at_risk", 0) for d in disputes if d.get("incentive_shield_status") in ["Protected", "Protected During Review", "Incentive Restored"])
+    
+    total_disputes = len(disputes)
+    legit_ratio = resolved_disputes / total_disputes if total_disputes > 0 else 1
+    protection_score = min(100, int(legit_ratio * 100) + 10) 
+
+    # Verification Insights
+    insights_map = {}
+    for d in disputes:
+        if d.get("verification") and d["verification"].get("evidence_checks"):
+            for check in d["verification"]["evidence_checks"]:
+                name = check["name"]
+                if name not in insights_map:
+                    insights_map[name] = {"total": 0, "verified": 0}
+                insights_map[name]["total"] += 1
+                if check["status"] == "VERIFIED":
+                    insights_map[name]["verified"] += 1
+                    
+    verification_insights = [
+        {"signal": k, "percentage": int(v["verified"] / v["total"] * 100)}
+        for k, v in insights_map.items()
+    ]
+
+    # Protection Factors
+    positive_factors = []
+    if any(i["percentage"] >= 50 for i in verification_insights):
+        positive_factors.append("Verified delivery evidence")
+    if insights_map.get("GPS Location Match", {}).get("percentage", 0) > 0:
+        positive_factors.append("Consistent GPS data")
+    positive_factors.append("Successful completed deliveries")
+
+    review_factors = []
+    if any(d.get("status") == "Rejected" for d in disputes):
+        review_factors.append("Previous claim rejected")
+    if active_disputes > 0:
+        review_factors.append("Previous claim requiring review")
+
+    sorted_disputes = sorted(disputes, key=lambda x: x.get("date", ""), reverse=True)
+    
+    # Current Shield Status (based on most recent shielded dispute)
+    shielded_disputes = [d for d in sorted_disputes if d.get("incentive_shield_status") in ["Protected", "Protected During Review", "Incentive Restored"]]
+    if shielded_disputes:
+        latest_shield = shielded_disputes[0]
+        shield_amount = latest_shield.get("amount_at_risk", 0)
+        shield_status = latest_shield.get("incentive_shield_status", "Active")
+        if shield_status == "Incentive Restored":
+            shield_explanation = "Your incentive is protected because recent disruption evidence was successfully verified."
+        else:
+            shield_explanation = "Your incentive is currently protected while the disruption is under review."
+    else:
+        shield_amount = 0
+        shield_status = "Not Active"
+        shield_explanation = "No active protections."
+
+    recent_activity = []
+    for d in sorted_disputes[:4]:
+        if d.get("status") == "Resolved":
+            recent_activity.append({
+                "title": f"Dispute Resolved — ₹{d.get('amount_at_risk', 0):,} restored",
+                "time": d.get("date"),
+                "type": "success"
+            })
+        elif d.get("status") == "Under Review":
+            recent_activity.append({
+                "title": f"Dispute Filed — {d.get('penalty_type')}",
+                "time": d.get("date"),
+                "type": "warning"
+            })
+        elif d.get("status") == "Rejected":
+            recent_activity.append({
+                "title": f"Dispute Rejected — {d.get('penalty_type')}",
+                "time": d.get("date"),
+                "type": "error"
+            })
+        else:
+             recent_activity.append({
+                "title": f"Dispute Update — {d.get('status')}",
+                "time": d.get("date"),
+                "type": "info"
+            })
+
+    return {
+        "active_disputes": active_disputes,
+        "resolved_disputes": resolved_disputes,
+        "protected_income": total_protected,
+        "protection_score": protection_score,
+        "recent_activity": recent_activity,
+        "recent_disputes": sorted_disputes[:5],
+        
+        "earnings_breakdown": {
+            "total_protected": total_protected,
+            "amount_recovered": amount_recovered,
+            "amount_at_risk": amount_at_risk,
+            "protected_disruptions": protected_disruptions
+        },
+        "shield": {
+            "amount": shield_amount,
+            "status": shield_status,
+            "explanation": shield_explanation
+        },
+        "verification_insights": verification_insights,
+        "protection_factors": {
+            "positive": positive_factors,
+            "review": review_factors
+        }
+    }
 @app.get("/api/db-test")
 def test_db(db: Session = Depends(get_db)):
     return {"status": "ok", "message": "Database connection successful."}

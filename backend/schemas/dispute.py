@@ -36,3 +36,31 @@ class Dispute(BaseModel):
     delivery_location: str
     completion_status: str
     verification: Optional[VerificationResult] = None
+
+class ActivityItem(BaseModel):
+    title: str
+    time: str
+    type: str
+
+class DashboardSummary(BaseModel):
+    protection_status: str
+    protected_amount: int
+    recovered_amount: int
+    amount_at_risk: int
+    incentive_shield_status: str
+    
+    protection_score: int
+    score_status: str
+    score_explanation: str
+    score_factors: List[str]
+    
+    total_disputes: int
+    pending_disputes: int
+    under_review_disputes: int
+    resolved_disputes: int
+    rejected_disputes: int
+    
+    verification_insights: dict
+    recent_disruptions: List[Dispute]
+    recent_activity: List[ActivityItem]
+
