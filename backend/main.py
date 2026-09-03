@@ -152,6 +152,13 @@ def get_dashboard():
     legit_ratio = resolved_disputes / total_disputes if total_disputes > 0 else 1
     protection_score = min(100, int(legit_ratio * 100) + 10) 
 
+    if protection_score >= 80:
+        score_explanation = "Your score is excellent because your recent deliveries show strong verification signals and successful dispute resolutions."
+    elif protection_score >= 50:
+        score_explanation = "Your score is good, reflecting solid verification history, though some recent claims may still require review."
+    else:
+        score_explanation = "Your score is currently lower because some recent claims require review and not all verification signals were successful."
+
     # Verification Insights
     insights_map = {}
     for d in disputes:
@@ -194,7 +201,7 @@ def get_dashboard():
         if shield_status == "Incentive Restored":
             shield_explanation = "Your incentive is protected because recent disruption evidence was successfully verified."
         else:
-            shield_explanation = "Your incentive is currently protected while the disruption is under review."
+            shield_explanation = "Incentive Shield remains active based on your protected incentive history. Claim review status does not automatically remove existing incentive protection."
     else:
         shield_amount = 0
         shield_status = "Not Active"
@@ -250,7 +257,8 @@ def get_dashboard():
         "protection_factors": {
             "positive": positive_factors,
             "review": review_factors
-        }
+        },
+        "score_explanation": score_explanation
     }
 @app.get("/api/db-test")
 def test_db(db: Session = Depends(get_db)):

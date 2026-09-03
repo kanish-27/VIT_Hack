@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { FC } from 'react';
 import Layout from '../components/Layout';
 import { checkHealth, getDashboardData } from '../services/api';
-import { Activity, AlertTriangle, ShieldCheck, TrendingUp, IndianRupee, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const mockIncomeData = [
@@ -38,8 +38,6 @@ const Dashboard: FC = () => {
 
   const activeDisputes = dashboardData?.active_disputes || 0;
   const resolvedDisputes = dashboardData?.resolved_disputes || 0;
-  const isResolved = resolvedDisputes > 0;
-  const protectedIncome = dashboardData?.protected_income || 0;
   const protectionScore = dashboardData?.protection_score || 0;
   
   // Create dynamic recent activity
@@ -104,9 +102,9 @@ const Dashboard: FC = () => {
                 <ShieldCheck className="h-5 w-5 text-blue-600" />
               </div>
             </div>
-            <div className="mt-4 text-sm text-blue-600 flex items-center relative z-10">
-              <span className="font-medium mr-1">{dashboardData?.shield?.status || 'Not Active'}:</span> 
-              <span className="truncate" title={dashboardData?.shield?.explanation}>{dashboardData?.shield?.explanation || 'No active protections.'}</span>
+            <div className="mt-4 text-sm text-blue-600 relative z-10">
+              <div className="font-medium mb-1">{dashboardData?.shield?.status || 'Not Active'}:</div> 
+              <div className="text-xs text-blue-700/80 leading-relaxed">{dashboardData?.shield?.explanation || 'No active protections.'}</div>
             </div>
           </div>
 
@@ -150,8 +148,8 @@ const Dashboard: FC = () => {
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
               </div>
             </div>
-            <div className="mt-4 text-sm text-emerald-600 flex items-center">
-              <span>Based on verification</span>
+            <div className="mt-4 text-xs text-slate-500 leading-relaxed border-t border-slate-100 pt-3">
+              {dashboardData?.score_explanation || 'Based on verification'}
             </div>
           </div>
         </div>
@@ -159,7 +157,9 @@ const Dashboard: FC = () => {
         {/* Protection Factors & Earnings Breakdown */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between">
-             <h3 className="text-lg font-semibold text-slate-800 mb-4">Protection Factors</h3>
+             <div className="mb-4 border-b border-slate-100 pb-2">
+               <h3 className="text-lg font-semibold text-slate-800">Protection Factors</h3>
+             </div>
              <div className="space-y-3">
                <div>
                  <h4 className="text-sm font-medium text-emerald-700 mb-2 flex items-center"><CheckCircle2 className="w-4 h-4 mr-1"/> Positive Factors</h4>
@@ -256,7 +256,7 @@ const Dashboard: FC = () => {
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <h3 className="text-lg font-semibold text-slate-800 mb-4">Recent Activity</h3>
             <div className="space-y-4">
-              {recentActivity.slice(0, 4).map((activity, i) => {
+              {recentActivity.slice(0, 4).map((activity: any, i: number) => {
                 const Icon = activity.icon;
                 return (
                 <div key={i} className="flex items-start">
