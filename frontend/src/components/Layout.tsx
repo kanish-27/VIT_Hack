@@ -27,7 +27,7 @@ const Layout: FC<LayoutProps> = ({ children }) => {
             <Activity className="h-5 w-5 mr-3" />
             <span>Disputes</span>
           </Link>
-          <Link to="#" className="flex items-center px-4 py-3 text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors font-medium">
+          <Link to="/resilience" className={`flex items-center px-4 py-3 rounded-lg transition-colors ${path === '/resilience' ? 'text-blue-600 bg-blue-50 font-medium' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'}`}>
             <IndianRupee className="h-5 w-5 mr-3" />
             <span>Resilience</span>
           </Link>

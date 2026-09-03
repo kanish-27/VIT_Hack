@@ -132,6 +132,20 @@ MOCK_DISPUTES = {
         }
     }
 }
+
+MOCK_CURRENT_DISRUPTION = {
+    "is_active": True,
+    "type": "Heavy Rain",
+    "severity": "High Impact",
+    "affected_zone": "Chennai Central",
+    "status": "Active",
+    "detection_time": "2026-09-04T18:30:00Z",
+    "estimated_duration": "4 hours",
+    "verification_status": "Verified via IMD Weather API",
+    "delivery_impact": "High probability of late deliveries and route deviations",
+    "base_deliveries_affected": 3
+}
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "GigShield API is running."}
@@ -378,3 +392,108 @@ def resolve_dispute(dispute_id: str):
     dispute["incentive_shield_status"] = "Incentive Restored"
     
     return dispute
+
+
+@app.get("/api/worker/resilience")
+def get_resilience():
+    disputes = list(MOCK_DISPUTES.values())
+    
+    # 1. Current Disruption
+    current_disruption = MOCK_CURRENT_DISRUPTION.copy()
+    
+    # 2. Worker Exposure
+    # Find active disputes in the affected zone
+    zone = current_disruption["affected_zone"]
+    affected_disputes = [d for d in disputes if d.get("status") not in ["Resolved", "Rejected"] and (d.get("pickup_location") == zone or d.get("delivery_location") == zone)]
+    
+    # Base explicit deliveries affected from the disruption, plus any active disputes we know about
+    explicit_deliveries = current_disruption["base_deliveries_affected"]
+    actual_disputes_count = len(affected_disputes)
+    total_deliveries_affected = max(explicit_deliveries, actual_disputes_count)
+    
+    earnings_at_risk = sum(d.get("amount_at_risk", 0) for d in affected_disputes)
+    
+    # If there are explicit deliveries affected but no disputes filed yet, estimate risk
+    if explicit_deliveries > actual_disputes_count:
+        avg_risk_per_delivery = 600
+        earnings_at_risk += (explicit_deliveries - actual_disputes_count) * avg_risk_per_delivery
+        
+    protection_available = sum(d.get("amount_at_risk", 0) for d in affected_disputes if d.get("incentive_shield_status") in ["Protected", "Protected During Review", "Incentive Restored"])
+    
+    # If the user has history of protection, we assume future deliveries in this disruption are also protected
+    if protection_available == 0 and len([d for d in disputes if d.get("incentive_shield_status") in ["Protected", "Protected During Review", "Incentive Restored"]]) > 0:
+        protection_available = earnings_at_risk  # Projected protection based on history
+        
+    exposure_level = "HIGH" if earnings_at_risk > 1000 else "ELEVATED" if earnings_at_risk > 500 else "LOW"
+    
+    worker_exposure = {
+        "deliveries_affected": total_deliveries_affected,
+        "earnings_at_risk": earnings_at_risk,
+        "protection_available": protection_available,
+        "exposure_level": exposure_level
+    }
+    
+    # 3. Resilience Risk Score (Deterministic)
+    # Start with base score depending on severity
+    score = 50 if current_disruption["severity"] == "High Impact" else 30
+    
+    # Add points for earnings at risk (up to 30 points)
+    risk_factor = min(30, int((earnings_at_risk / 2000) * 30))
+    score += risk_factor
+    
+    # Add points for affected deliveries (up to 20 points)
+    delivery_factor = min(20, total_deliveries_affected * 5)
+    score += delivery_factor
+    
+    score = min(100, score)
+    
+    risk_level = "HIGH" if score >= 75 else "ELEVATED" if score >= 50 else "MODERATE"
+    
+    major_factors = [
+        "Severe weather conditions actively impacting delivery times.",
+        f"{total_deliveries_affected} active deliveries overlap with the affected zone.",
+        f"₹{earnings_at_risk} of earnings are currently exposed to disruption risk."
+    ]
+    
+    risk_score = {
+        "score": score,
+        "level": risk_level,
+        "explanation": f"Risk is {risk_level.lower()} because severe weather conditions overlap with active delivery windows in {zone}.",
+        "factors": major_factors
+    }
+    
+    # 4. Active Alerts (derived explicitly from current disruption)
+    active_alerts = [{
+        "id": "ALERT-001",
+        "type": current_disruption["type"],
+        "severity": current_disruption["severity"],
+        "affected_zone": current_disruption["affected_zone"],
+        "detection_time": current_disruption["detection_time"],
+        "expected_impact": current_disruption["delivery_impact"],
+        "verification_status": current_disruption["verification_status"]
+    }]
+    
+    # 5. Historical Disruptions (derived from past disputes)
+    historical_disruptions = []
+    # e.g., the resolved traffic dispute GS-2026-48280
+    past_resolved = [d for d in disputes if d.get("status") == "Resolved"]
+    for d in past_resolved:
+        historical_disruptions.append({
+            "id": f"HIST-{d.get('id')}",
+            "date": d.get("date"),
+            "type": "Severe Traffic" if "traffic" in d.get("complaint", "").lower() else "Platform Issue",
+            "severity": "Elevated",
+            "affected_deliveries": 1,
+            "earnings_impact": d.get("amount_at_risk", 0),
+            "claims_generated": 1,
+            "verification_result": "Verified"
+        })
+        
+    return {
+        "current_disruption": current_disruption,
+        "worker_exposure": worker_exposure,
+        "risk_score": risk_score,
+        "active_alerts": active_alerts,
+        "historical_disruptions": historical_disruptions,
+        "affected_zones": [current_disruption["affected_zone"]]
+    }

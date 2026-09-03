@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { FC } from 'react';
 import Layout from '../components/Layout';
-import { checkHealth, getDashboardData } from '../services/api';
-import { Activity, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { checkHealth, getDashboardData, getResilienceData } from '../services/api';
+import { Activity, AlertTriangle, ShieldCheck, CheckCircle2, ShieldAlert } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const mockIncomeData = [
@@ -19,6 +19,7 @@ const mockIncomeData = [
 const Dashboard: FC = () => {
   const [apiStatus, setApiStatus] = useState<'checking' | 'online' | 'offline'>('checking');
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [resilienceData, setResilienceData] = useState<any>(null);
 
   useEffect(() => {
     checkHealth()
@@ -34,6 +35,7 @@ const Dashboard: FC = () => {
       });
 
     getDashboardData().then(data => setDashboardData(data)).catch(console.error);
+    getResilienceData().then(data => setResilienceData(data)).catch(console.error);
   }, []);
 
   const activeDisputes = dashboardData?.active_disputes || 0;
@@ -86,6 +88,24 @@ const Dashboard: FC = () => {
             </span>
           </div>
         </div>
+
+        {resilienceData?.current_disruption?.is_active && (
+          <Link to="/resilience" className="block bg-red-50 border border-red-200 p-4 rounded-xl shadow-sm hover:bg-red-100 transition-colors">
+            <div className="flex items-start">
+              <ShieldAlert className="h-6 w-6 text-red-600 mr-3 flex-shrink-0" />
+              <div>
+                <h3 className="font-semibold text-red-900 flex items-center">
+                  Active Disruption Detected
+                  <span className="ml-2 text-xs font-bold px-2 py-0.5 bg-red-100 text-red-700 rounded border border-red-200">
+                    {resilienceData.current_disruption.severity}
+                  </span>
+                </h3>
+                <p className="text-red-800 text-sm mt-1">{resilienceData.current_disruption.delivery_impact}</p>
+                <div className="text-sm font-medium text-red-700 mt-2 hover:underline">View Resilience Details &rarr;</div>
+              </div>
+            </div>
+          </Link>
+        )}
 
         {/* Metric Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

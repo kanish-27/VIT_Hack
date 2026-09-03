@@ -56,3 +56,9 @@ export const resolveDispute = async (id: string) => {
   if (!response.ok) throw new Error('Failed to resolve dispute');
   return await response.json();
 };
+
+export const getResilienceData = async () => {
+  const response = await fetch(`${API_BASE_URL}/api/worker/resilience`);
+  if (!response.ok) throw new Error('Failed to fetch resilience data');
+  return await response.json();
+};
