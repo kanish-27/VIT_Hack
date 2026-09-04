@@ -146,6 +146,20 @@ MOCK_CURRENT_DISRUPTION = {
     "base_deliveries_affected": 3
 }
 
+@app.get("/")
+def root():
+    return {
+        "status": "ok",
+        "message": "Welcome to GigShield API",
+        "docs": "http://localhost:8000/docs",
+        "endpoints": [
+            "/health",
+            "/api/worker/dashboard",
+            "/api/disputes",
+            "/api/worker/resilience"
+        ]
+    }
+
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "GigShield API is running."}

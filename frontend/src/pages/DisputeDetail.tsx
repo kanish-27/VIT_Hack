@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import type { FC } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import Layout from '../components/Layout';
-import { getDispute, verifyDispute } from '../services/api';
-import { ArrowLeft, ShieldCheck, AlertCircle, FileText, CheckCircle2, Activity, ShieldAlert, Download, CheckCircle } from 'lucide-react';
-import { resolveDispute } from '../services/api';
+import { getDispute, verifyDispute, resolveDispute } from '../services/api';
+import { useAccessibility } from '../context/AccessibilityContext';
+import { ArrowLeft, ShieldCheck, FileText, CheckCircle2, Activity, ShieldAlert, Download, CheckCircle, Volume2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -52,6 +52,8 @@ const DisputeDetail: FC = () => {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { t, easyAccess, speak } = useAccessibility();
+
   useEffect(() => {
     if (id) {
       fetchDispute(id);
@@ -76,7 +78,6 @@ const DisputeDetail: FC = () => {
     try {
       setVerifying(true);
       await verifyDispute(id);
-      // Re-fetch to get updated state
       await fetchDispute(id);
     } catch (err) {
       setError('Verification failed. Please try again.');
@@ -104,19 +105,16 @@ const DisputeDetail: FC = () => {
     const doc = new jsPDF();
     const v = dispute.verification;
     
-    // Header
     doc.setFontSize(18);
-    doc.setTextColor(15, 23, 42); // slate-900
+    doc.setTextColor(15, 23, 42);
     doc.text('GigShield / Algorithmic Appeal Record', 14, 22);
     
-    // Primary Details
     doc.setFontSize(12);
-    doc.setTextColor(71, 85, 105); // slate-500
+    doc.setTextColor(71, 85, 105);
     doc.text(`Dispute ID: ${dispute.id}`, 14, 32);
     doc.text(`Worker: ${dispute.worker_name}`, 14, 38);
     doc.text(`Delivery ID: ${dispute.delivery_id}`, 14, 44);
     
-    // Details Table
     autoTable(doc, {
       startY: 50,
       head: [['Field', 'Value']],
@@ -134,7 +132,6 @@ const DisputeDetail: FC = () => {
       headStyles: { fillColor: [51, 65, 85] },
     });
     
-    // Verification Results
     const finalY = (doc as any).lastAutoTable.finalY || 130;
     doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
@@ -145,7 +142,6 @@ const DisputeDetail: FC = () => {
     doc.text(`Confidence Score: ${v.confidence_score} / 100`, 14, finalY + 24);
     doc.text(`Incentive Shield Status: ${dispute.incentive_shield_status}`, 14, finalY + 30);
     
-    // Evidence Checks Table
     const evidenceData = v.evidence_checks.map(check => [
       check.name,
       check.status,
@@ -163,7 +159,6 @@ const DisputeDetail: FC = () => {
     
     const secondFinalY = (doc as any).lastAutoTable.finalY || 200;
     
-    // Footer / Cryptographic Info
     doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
     doc.text(`Verification Timestamp: ${v.timestamp || new Date().toISOString()}`, 14, secondFinalY + 15);
@@ -180,7 +175,7 @@ const DisputeDetail: FC = () => {
   if (loading) {
     return (
       <Layout>
-        <div className="flex justify-center items-center h-64 text-slate-500">Loading dispute details...</div>
+        <div className="flex justify-center items-center h-64 text-slate-500 font-bold">Loading case...</div>
       </Layout>
     );
   }
@@ -189,289 +184,230 @@ const DisputeDetail: FC = () => {
     return (
       <Layout>
         <div className="max-w-3xl mx-auto space-y-6">
-          <Link to="/disputes" className="flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back to Disputes
+          <Link to="/disputes" className="flex items-center font-bold text-slate-600 hover:text-slate-900">
+            <ArrowLeft className="h-5 w-5 mr-1" />
+            {t('back')}
           </Link>
-          <div className="bg-red-50 border border-red-200 text-red-700 p-8 rounded-xl text-center">
-            <ShieldAlert className="h-10 w-10 mx-auto mb-3 text-red-500" />
-            <h2 className="text-xl font-bold mb-2">Dispute not found</h2>
-            <p className="text-sm">{error}</p>
-            <Link to="/disputes" className="mt-6 inline-block px-4 py-2 bg-white text-red-700 border border-red-200 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors">
-              Return to Center
-            </Link>
+          <div className="bg-red-50 border-2 border-red-300 text-red-900 p-8 rounded-2xl text-center">
+            <ShieldAlert className="h-12 w-12 mx-auto mb-3 text-red-600" />
+            <h2 className="text-2xl font-bold mb-2">Dispute not found</h2>
+            <p>{error}</p>
           </div>
         </div>
       </Layout>
     );
   }
 
-  const steps = [
-    { label: 'Submitted', active: true },
-    { label: 'Evidence Verification', active: dispute.status === 'Under Review' || dispute.status === 'Likely Unfair' || dispute.status === 'Resolved' },
-    { label: 'Under Review', active: dispute.status === 'Under Review' || dispute.status === 'Likely Unfair' || dispute.status === 'Resolved' },
-    { label: 'Likely Unfair', active: dispute.status === 'Likely Unfair' || dispute.status === 'Resolved' },
-    { label: 'Resolved', active: dispute.status === 'Resolved' }
-  ];
-
   const shieldActive = dispute.verification && dispute.verification.confidence_score >= 90;
 
   return (
     <Layout>
-      <div className="max-w-5xl mx-auto space-y-6 pb-10">
+      <div className={`max-w-5xl mx-auto space-y-6 pb-10 ${easyAccess ? 'space-y-8' : ''}`}>
         
-        {/* Navigation */}
-        <Link to="/disputes" className="flex items-center text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors w-fit">
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          Back to Disputes
+        {/* Back Link */}
+        <Link to="/disputes" className="flex items-center font-bold text-slate-600 hover:text-slate-900 w-fit">
+          <ArrowLeft className="h-5 w-5 mr-2" />
+          {t('back')}
         </Link>
 
-        {/* Header */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end pb-4 border-b border-slate-200">
+        {/* Case Header */}
+        <div className="bg-white p-6 rounded-2xl border-2 border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Dispute {dispute.id}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className={`font-black text-slate-900 ${easyAccess ? 'text-3xl' : 'text-2xl'}`}>
+                {t('dispute_detail_title')}: {dispute.id}
+              </h1>
+              <button
+                onClick={() => speak(`Dispute ${dispute.id}. Penalty: ${dispute.penalty_type}. Complaint: ${dispute.complaint}. Amount at risk: ${dispute.amount_at_risk} rupees.`, 'detail_header')}
+                className="p-2 text-blue-600 bg-blue-50 rounded-xl hover:bg-blue-100"
+              >
+                <Volume2 className="h-6 w-6" />
+              </button>
+            </div>
             <p className="text-slate-500 mt-1">Delivery: {dispute.delivery_id} • {dispute.date}</p>
           </div>
-          <div className="mt-4 md:mt-0 flex items-center space-x-3">
-            <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${dispute.status === 'Likely Unfair' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-              {dispute.status}
-            </span>
-          </div>
-        </div>
 
-        {/* Stepper */}
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
-          <div className="flex items-center min-w-max">
-            {steps.map((step, index) => (
-              <div key={step.label} className="flex items-center">
-                <div className="flex flex-col items-center">
-                  <div className={`h-8 w-8 rounded-full flex items-center justify-center border-2 ${step.active ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300 text-slate-400'}`}>
-                    {step.active ? <CheckCircle2 className="h-5 w-5" /> : <span>{index + 1}</span>}
-                  </div>
-                  <span className={`text-xs mt-2 font-medium ${step.active ? 'text-blue-700' : 'text-slate-500'}`}>{step.label}</span>
-                </div>
-                {index < steps.length - 1 && (
-                  <div className={`w-16 h-0.5 mx-2 mb-6 ${steps[index + 1].active ? 'bg-blue-600' : 'bg-slate-200'}`}></div>
-                )}
-              </div>
-            ))}
-          </div>
+          <span className={`px-4 py-1.5 rounded-full font-black text-sm ${
+            dispute.status === 'Resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+          }`}>
+            {dispute.status}
+          </span>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Left Column - Details */}
+          {/* Left Column */}
           <div className="lg:col-span-1 space-y-6">
             
-            {/* Incentive Shield Card */}
+            {/* Incentive Shield Status */}
             {shieldActive && (
-              <div className="bg-emerald-50 border border-emerald-200 p-5 rounded-xl shadow-sm relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <ShieldCheck className="h-24 w-24 text-emerald-600" />
+              <div className="bg-emerald-50 border-2 border-emerald-300 p-6 rounded-2xl shadow-sm relative overflow-hidden">
+                <div className="flex items-center text-emerald-800 font-extrabold text-lg mb-2">
+                  <ShieldCheck className="h-6 w-6 mr-2 text-emerald-600" />
+                  INCENTIVE SHIELD
                 </div>
-                <div className="relative z-10">
-                  <div className="flex items-center text-emerald-700 font-bold mb-2">
-                    <ShieldCheck className="h-5 w-5 mr-2" />
-                    INCENTIVE SHIELD
-                  </div>
-                  <h3 className="text-3xl font-black text-emerald-800 mb-1">₹{dispute.amount_at_risk.toLocaleString('en-IN')} PROTECTED</h3>
-                  <p className="text-sm font-medium text-emerald-700 mb-3">Status: {dispute.incentive_shield_status}</p>
-                  <p className="text-xs text-emerald-600 leading-relaxed">
-                    Your incentive amount is protected by GigShield's algorithmic verification.
-                  </p>
-                </div>
+                <h3 className="text-3xl font-black text-emerald-900">₹{dispute.amount_at_risk.toLocaleString('en-IN')} PROTECTED</h3>
+                <p className="text-sm font-bold text-emerald-700 mt-1">{dispute.incentive_shield_status}</p>
               </div>
             )}
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center">
-                <FileText className="h-4 w-4 mr-2 text-slate-400" />
-                Dispute Summary
+            {/* Summary */}
+            <div className="bg-white p-6 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
+              <h3 className={`font-bold text-slate-900 border-b pb-2 ${easyAccess ? 'text-xl' : 'text-base'}`}>
+                📌 Case Summary
               </h3>
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs text-slate-500">Penalty</p>
-                  <p className="font-medium text-slate-900">{dispute.penalty_type}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Customer Complaint</p>
-                  <p className="font-medium text-slate-900">"{dispute.complaint}"</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Customer Rating</p>
-                  <div className="flex items-center mt-0.5">
-                    {[...Array(5)].map((_, i) => (
-                      <svg key={i} className={`w-4 h-4 ${i < (dispute.customer_rating || 0) ? 'text-amber-400' : 'text-slate-200'}`} fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                      </svg>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Amount at Risk</p>
-                  <p className="font-medium text-red-600">₹{dispute.amount_at_risk.toLocaleString('en-IN')}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Current Status</p>
-                  <p className="font-medium text-slate-900">{dispute.status}</p>
-                </div>
+              
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase">{t('penalty_type')}</p>
+                <p className="font-extrabold text-slate-900">{dispute.penalty_type}</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase">{t('customer_complaint')}</p>
+                <p className="font-medium text-slate-800">"{dispute.complaint}"</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase">{t('amount_at_risk')}</p>
+                <p className="font-black text-red-600 text-xl">₹{dispute.amount_at_risk.toLocaleString('en-IN')}</p>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center">
-                <Activity className="h-4 w-4 mr-2 text-slate-400" />
-                Delivery Information
+            {/* Delivery Info */}
+            <div className="bg-white p-6 rounded-2xl border-2 border-slate-200 shadow-sm space-y-4">
+              <h3 className={`font-bold text-slate-900 border-b pb-2 ${easyAccess ? 'text-xl' : 'text-base'}`}>
+                📍 {t('pickup_drop')}
               </h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-slate-500">Pickup Time</p>
-                    <p className="font-medium text-slate-900 text-sm">{dispute.pickup_time}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-slate-500">Delivery Time</p>
-                    <p className="font-medium text-slate-900 text-sm">{dispute.delivery_time}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Pickup Location</p>
-                  <p className="font-medium text-slate-900 text-sm">{dispute.pickup_location}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Delivery Location</p>
-                  <p className="font-medium text-slate-900 text-sm">{dispute.delivery_location}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-slate-500">Completion Status</p>
-                  <p className="font-medium text-emerald-600 text-sm flex items-center">
-                    <CheckCircle2 className="h-4 w-4 mr-1" />
-                    {dispute.completion_status}
-                  </p>
-                </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase">Pickup Location</p>
+                <p className="font-bold text-slate-900">{dispute.pickup_location} ({dispute.pickup_time})</p>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase">Delivery Location</p>
+                <p className="font-bold text-slate-900">{dispute.delivery_location} ({dispute.delivery_time})</p>
               </div>
             </div>
+
           </div>
 
-          {/* Right Column - Evidence Engine */}
+          {/* Right Column - Evidence Checks Engine */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+            <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm overflow-hidden p-6 space-y-6">
+              
+              <div className="flex justify-between items-center border-b pb-4">
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900">Automated Evidence Verification</h2>
-                  <p className="text-sm text-slate-500 mt-1">Deterministic telemetry analysis</p>
+                  <h2 className={`font-black text-slate-900 ${easyAccess ? 'text-2xl' : 'text-xl'}`}>
+                    ⚡ {t('telemetry_evidence')}
+                  </h2>
+                  <p className="text-sm text-slate-500 mt-0.5">GPS, Timestamp, Route & Delivery Verification</p>
                 </div>
+
                 {!dispute.verification && (
                   <button 
                     onClick={handleVerify} 
                     disabled={verifying}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 flex items-center"
+                    className={`px-6 py-3 bg-blue-600 text-white rounded-xl font-extrabold hover:bg-blue-700 transition-colors shadow-sm disabled:opacity-70 ${easyAccess ? 'text-lg' : 'text-sm'}`}
                   >
-                    {verifying ? 'Verifying...' : 'Verify Dispute'}
+                    {verifying ? t('verifying') : t('verify_evidence_btn')}
                   </button>
                 )}
+
                 {dispute.verification && (
                   <div className="text-right">
-                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Confidence Score</p>
-                    <p className={`text-2xl font-black ${dispute.verification.confidence_score >= 90 ? 'text-emerald-600' : 'text-amber-500'}`}>
+                    <p className="text-xs font-bold text-slate-500 uppercase">{t('confidence_score')}</p>
+                    <p className="text-3xl font-black text-emerald-600">
                       {dispute.verification.confidence_score} / 100
                     </p>
                   </div>
                 )}
               </div>
-              
-              <div className="p-6">
-                {!dispute.verification ? (
-                  <div className="text-center py-12">
-                    <Activity className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-slate-800 mb-2">Ready for Verification</h3>
-                    <p className="text-slate-500 text-sm max-w-md mx-auto">
-                      Click the "Verify Dispute" button to run the GigShield deterministic engine against the platform telemetry data for this delivery.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="space-y-3">
-                      {dispute.verification.evidence_checks.map((check, i) => (
-                        <div key={i} className={`p-4 rounded-lg border ${check.status === 'VERIFIED' ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'} flex items-start`}>
-                          <div className={`mt-0.5 mr-3 ${check.status === 'VERIFIED' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                            {check.status === 'VERIFIED' ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex justify-between items-center mb-1">
-                              <h4 className="font-semibold text-slate-900 text-sm">{check.name}</h4>
-                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${check.status === 'VERIFIED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                {check.status}
-                              </span>
-                            </div>
-                            <p className="text-xs text-slate-600">{check.explanation}</p>
+
+              {!dispute.verification ? (
+                <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-300">
+                  <Activity className="h-12 w-12 text-slate-400 mx-auto mb-3" />
+                  <p className="font-bold text-slate-800 text-lg">Ready for Verification</p>
+                  <p className="text-sm text-slate-600 mt-1 max-w-md mx-auto">
+                    Click "{t('verify_evidence_btn')}" to run algorithmic GPS and telemetry checks.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  
+                  {/* Evidence Checks */}
+                  <div className="space-y-3">
+                    {dispute.verification.evidence_checks.map((check, i) => (
+                      <div key={i} className={`p-4 rounded-xl border-2 ${check.status === 'VERIFIED' ? 'bg-emerald-50 border-emerald-200' : 'bg-amber-50 border-amber-200'} flex items-start justify-between`}>
+                        <div className="flex items-start gap-3">
+                          <CheckCircle2 className={`h-6 w-6 mt-0.5 ${check.status === 'VERIFIED' ? 'text-emerald-600' : 'text-amber-600'}`} />
+                          <div>
+                            <h4 className={`font-bold text-slate-900 ${easyAccess ? 'text-lg' : 'text-sm'}`}>{check.name}</h4>
+                            <p className={`text-slate-700 ${easyAccess ? 'text-base font-medium' : 'text-xs'}`}>{check.explanation}</p>
                           </div>
                         </div>
-                      ))}
-                    </div>
 
-                    <div className="bg-slate-50 p-5 rounded-lg border border-slate-200">
-                      <h4 className="font-bold text-slate-900 mb-2">Why was this dispute flagged?</h4>
-                      <p className="text-sm text-slate-600 leading-relaxed">
-                        {dispute.verification.explanation}
-                      </p>
-                    </div>
-
-                    {/* Algorithmic Appeal Record */}
-                    <div className="bg-slate-900 p-5 rounded-lg border border-slate-700 text-slate-300 mt-6">
-                      <div className="flex justify-between items-center mb-4">
-                        <h4 className="font-bold text-white flex items-center">
-                          <FileText className="h-4 w-4 mr-2" />
-                          Algorithmic Appeal Record
-                        </h4>
-                        <button 
-                          onClick={handleDownloadAppeal}
-                          className="text-xs flex items-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded transition-colors"
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Download Record
-                        </button>
+                        <span className={`px-3 py-1 rounded-md text-xs font-black ${check.status === 'VERIFIED' ? 'bg-emerald-200 text-emerald-900' : 'bg-amber-200 text-amber-900'}`}>
+                          {check.status}
+                        </span>
                       </div>
-                      <div className="text-xs font-mono break-all mb-4">
-                        <p className="text-slate-400 mb-1">SHA-256 Verification Hash:</p>
-                        <p className="text-emerald-400">{dispute.verification.verification_hash}</p>
-                      </div>
-                      <div className="text-xs font-mono break-all">
-                        <p className="text-slate-400 mb-1">Generated At:</p>
-                        <p>{dispute.verification.timestamp}</p>
-                      </div>
-                    </div>
-                    
-                    {dispute.status === 'Likely Unfair' && (
-                      <div className="mt-8 pt-6 border-t border-slate-200 text-center">
-                        <h4 className="text-lg font-bold text-slate-900 mb-2">Verification Complete</h4>
-                        <p className="text-slate-600 text-sm mb-4">The algorithmic analysis strongly indicates an unfair penalty. You can now resolve this dispute to restore the incentive.</p>
-                        <button 
-                          onClick={handleResolve}
-                          className="px-8 py-3 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center mx-auto"
-                        >
-                          <CheckCircle className="h-5 w-5 mr-2" />
-                          Resolve Dispute
-                        </button>
-                      </div>
-                    )}
-                    
-                    {dispute.status === 'Resolved' && (
-                      <div className="mt-8 pt-6 border-t border-slate-200 text-center">
-                        <div className="inline-flex items-center justify-center p-3 bg-emerald-100 rounded-full mb-4">
-                          <CheckCircle className="h-8 w-8 text-emerald-600" />
-                        </div>
-                        <h4 className="text-xl font-bold text-emerald-700 mb-2">Dispute Resolved Successfully</h4>
-                        <p className="text-emerald-600 text-sm mb-2">Your incentive has been fully restored.</p>
-                      </div>
-                    )}
+                    ))}
                   </div>
-                )}
-              </div>
+
+                  {/* Decision Explanation */}
+                  <div className="bg-blue-50 p-5 rounded-2xl border-2 border-blue-200">
+                    <h4 className="font-bold text-blue-950 mb-1">{t('decision')}: {dispute.verification.decision}</h4>
+                    <p className="text-blue-900 text-sm leading-relaxed">{dispute.verification.explanation}</p>
+                  </div>
+
+                  {/* PDF Download Appeal */}
+                  <div className="bg-slate-900 p-6 rounded-2xl text-white space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-white flex items-center">
+                        <FileText className="h-5 w-5 mr-2 text-emerald-400" />
+                        Algorithmic Appeal Record
+                      </h4>
+                      <button 
+                        onClick={handleDownloadAppeal}
+                        className="flex items-center bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Record (PDF)
+                      </button>
+                    </div>
+
+                    <div className="text-xs font-mono break-all text-slate-400">
+                      <p>SHA-256 Hash: <span className="text-emerald-400">{dispute.verification.verification_hash}</span></p>
+                    </div>
+                  </div>
+
+                  {/* Resolve Button */}
+                  {dispute.status === 'Likely Unfair' && (
+                    <div className="pt-4 border-t border-slate-200 text-center">
+                      <button 
+                        onClick={handleResolve}
+                        className={`w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xl transition-all shadow-md flex items-center justify-center`}
+                      >
+                        <CheckCircle className="h-7 w-7 mr-3" />
+                        {t('restore_incentive_btn')} (₹{dispute.amount_at_risk})
+                      </button>
+                    </div>
+                  )}
+
+                  {dispute.status === 'Resolved' && (
+                    <div className="p-4 bg-emerald-100 border-2 border-emerald-300 rounded-2xl text-center">
+                      <h4 className="text-xl font-black text-emerald-900">✅ {t('resolved')} — {t('incentive_shield_easy')} RESTORED</h4>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
             </div>
           </div>
 
         </div>
+
       </div>
     </Layout>
   );
